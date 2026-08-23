@@ -1,0 +1,12 @@
+FROM node:22-alpine
+RUN corepack enable
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml eslint.config.mjs ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+RUN pnpm install --frozen-lockfile
+COPY apps/api apps/api
+RUN pnpm --filter @edufix/api prisma:generate && pnpm --filter @edufix/api build
+WORKDIR /app/apps/api
+EXPOSE 4000
+CMD ["sh", "-c", "pnpm exec prisma migrate deploy && node dist/src/main.js"]

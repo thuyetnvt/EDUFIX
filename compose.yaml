@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: edufix
+      POSTGRES_PASSWORD: edufix
+      POSTGRES_DB: edufix
+    ports:
+      - "5432:5432"
+    volumes:
+      - edufix_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edufix -d edufix"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      DATABASE_URL: postgresql://edufix:edufix@postgres:5432/edufix?schema=public
+      JWT_SECRET: ${JWT_SECRET:-replace-this-before-production}
+      WEB_ORIGIN: http://localhost:3000
+      PUBLIC_WEB_URL: http://localhost:3000
+      API_PORT: 4000
+      API_HOST: 0.0.0.0
+      AI_PROVIDER: ${AI_PROVIDER:-rule-based}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+    ports:
+      - "4000:4000"
+    volumes:
+      - edufix_uploads:/app/apps/api/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  edufix_pgdata:
+  edufix_uploads:

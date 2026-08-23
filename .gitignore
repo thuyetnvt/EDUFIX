@@ -1,0 +1,8 @@
+node_modules/
+apps/api/data.json
+.env
+.next/
+*.tsbuildinfo
+dist/
+coverage/
+apps/api/uploads/

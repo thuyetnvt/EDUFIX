@@ -1,0 +1,27 @@
+{
+  "name": "edufix",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "dev": "dotenv -e .env -- concurrently -k \"pnpm --filter @edufix/api dev\" \"pnpm --filter @edufix/web dev\"",
+    "start": "dotenv -e .env -- concurrently -k \"pnpm --filter @edufix/api start\" \"pnpm --filter @edufix/web start\"",
+    "build": "dotenv -e .env -- pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "node --test tests/**/*.test.js",
+    "test:e2e": "node --test tests/api.e2e.test.js",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "format": "prettier --write \"apps/**/*.{ts,tsx,css,js,json}\" \"tests/**/*.js\" \"docs/**/*.md\" \"README.md\"",
+    "db:generate": "dotenv -e .env -- pnpm --filter @edufix/api prisma:generate",
+    "db:migrate": "dotenv -e .env -- pnpm --filter @edufix/api prisma:migrate",
+    "db:deploy": "dotenv -e .env -- pnpm --filter @edufix/api exec prisma migrate deploy",
+    "db:seed": "dotenv -e .env -- pnpm --filter @edufix/api prisma:seed"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "concurrently": "^9.1.2",
+    "dotenv-cli": "^11.0.0",
+    "prettier": "^3.9.6",
+    "typescript-eslint": "^8.67.0"
+  }
+}
