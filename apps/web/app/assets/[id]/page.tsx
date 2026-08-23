@@ -87,7 +87,7 @@ export default function AssetDetail() {
             <section className="card">
               <div className="card-header">
                 <h2>{item.assetCode}</h2>
-                <Badge value={item.status} />
+                <Badge value={item.status} kind="assetStatus" />
               </div>
               <div className="definition">
                 <div>
@@ -231,10 +231,10 @@ export default function AssetDetail() {
                       </td>
                       <td>{x.title}</td>
                       <td>
-                        <Badge value={x.priority} />
+                        <Badge value={x.priority} kind="priority" />
                       </td>
                       <td>
-                        <Badge value={x.status} />
+                        <Badge value={x.status} kind="incidentStatus" />
                       </td>
                       <td>{dateTime(x.createdAt)}</td>
                     </tr>

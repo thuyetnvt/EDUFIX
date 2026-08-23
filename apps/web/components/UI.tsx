@@ -1,11 +1,11 @@
 "use client";
 
-import { vi } from "../lib/api";
+import { LabelKind, vi } from "../lib/i18n";
 
-export function Badge({ value }: { value?: string }) {
+export function Badge({ value, kind }: { value?: string; kind?: LabelKind }) {
   return (
     <span className={`badge badge-${(value ?? "default").toLowerCase()}`}>
-      {vi(value)}
+      {vi(value, kind)}
     </span>
   );
 }

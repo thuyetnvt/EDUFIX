@@ -1,6 +1,7 @@
 "use client";
 import { FormEvent, use, useEffect, useState } from "react";
 import Link from "next/link";
+import { vi } from "../../../lib/i18n";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
@@ -105,7 +106,9 @@ export default function ScanPage({
               {submitted.aiSuggestion?.summary ??
                 "Phiếu đã được tạo và chờ xử lý."}
             </p>
-            <p className="muted">Mức ưu tiên đề xuất: {submitted.priority}</p>
+            <p className="muted">
+              Mức ưu tiên đề xuất: {vi(submitted.priority, "priority")}
+            </p>
             <Link href="/" className="button">
               Về dashboard
             </Link>

@@ -45,7 +45,7 @@ export default function MobileHome() {
               >
                 <header>
                   <b>{x.incidentCode}</b>
-                  <Badge value={x.status} />
+                  <Badge value={x.status} kind="incidentStatus" />
                 </header>
                 <p>
                   {x.title} · {x.asset?.name}

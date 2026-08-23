@@ -60,6 +60,7 @@ export default function Assets() {
           <option value="ACTIVE">Hoạt động</option>
           <option value="FAULTY">Đang hỏng</option>
           <option value="REPAIRING">Đang sửa</option>
+          <option value="MAINTENANCE">Đang bảo trì</option>
           <option value="RETIRED">Ngừng sử dụng</option>
         </select>
       </div>
@@ -99,7 +100,7 @@ export default function Assets() {
                     <td>{item.category?.name}</td>
                     <td>{item.location?.name}</td>
                     <td>
-                      <Badge value={item.status} />
+                      <Badge value={item.status} kind="assetStatus" />
                     </td>
                     <td>{item._count?.incidents ?? 0}</td>
                     <td>{dateTime(item.updatedAt)}</td>

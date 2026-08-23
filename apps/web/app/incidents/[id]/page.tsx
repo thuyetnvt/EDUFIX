@@ -11,6 +11,7 @@ import {
   getCurrentUser,
   money,
 } from "../../../lib/api";
+import { vi } from "../../../lib/i18n";
 
 export default function IncidentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -98,7 +99,8 @@ export default function IncidentDetail() {
           <section className="card">
             <div className="card-header">
               <div>
-                <Badge value={item.priority} /> <Badge value={item.status} />
+                <Badge value={item.priority} kind="priority" />{" "}
+                <Badge value={item.status} kind="incidentStatus" />
               </div>
               <span className="muted">{dateTime(item.createdAt)}</span>
             </div>
@@ -141,7 +143,8 @@ export default function IncidentDetail() {
             </div>
             {item.aiSuggestion && (
               <div className="demo-accounts">
-                <b>Gợi ý từ trợ lý:</b> {item.aiSuggestion.category} ·{" "}
+                <b>Gợi ý từ trợ lý:</b>{" "}
+                {vi(item.aiSuggestion.category, "aiCategory")} ·{" "}
                 {item.aiSuggestion.summary}
               </div>
             )}
@@ -202,7 +205,7 @@ export default function IncidentDetail() {
               >
                 <header>
                   <b>
-                    {x.author?.fullName} · {x.author?.role}
+                    {x.author?.fullName} · {vi(x.author?.role, "role")}
                   </b>
                   <span>{dateTime(x.createdAt)}</span>
                 </header>
@@ -381,8 +384,10 @@ export default function IncidentDetail() {
               {item.history?.map((x: any) => (
                 <div className="timeline-item" key={x.id}>
                   <b>
-                    {x.fromStatus ? x.fromStatus + " → " : ""}
-                    {x.toStatus}
+                    {x.fromStatus
+                      ? `${vi(x.fromStatus, "incidentStatus")} → `
+                      : ""}
+                    {vi(x.toStatus, "incidentStatus")}
                   </b>
                   <span>{x.note}</span>
                   <small>

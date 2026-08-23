@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useState } from "react";
 import AppShell from "../../components/AppShell";
 import { ErrorBox, Loading } from "../../components/UI";
 import { api } from "../../lib/api";
+import { vi } from "../../lib/i18n";
 export default function Locations() {
   const [items, setItems] = useState<any[] | null>(null);
   const [error, setError] = useState("");
@@ -56,7 +57,7 @@ export default function Locations() {
                     <tr key={x.id}>
                       <td>{x.code}</td>
                       <td>{x.name}</td>
-                      <td>{x.type}</td>
+                      <td>{vi(x.type, "locationType")}</td>
                       <td>{x.parent?.name ?? "—"}</td>
                       <td>{x._count?.assets ?? 0}</td>
                     </tr>
@@ -94,7 +95,7 @@ export default function Locations() {
                 <option value="">Không có</option>
                 {items?.map((x) => (
                   <option key={x.id} value={x.id}>
-                    {x.name} · {x.type}
+                    {x.name} · {vi(x.type, "locationType")}
                   </option>
                 ))}
               </select>

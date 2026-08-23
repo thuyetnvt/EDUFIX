@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import AppShell from "../../components/AppShell";
 import { ErrorBox, Loading } from "../../components/UI";
 import { api, dateTime } from "../../lib/api";
+import { vi } from "../../lib/i18n";
 export default function AuditLogs() {
   const [items, setItems] = useState<any[] | null>(null);
   const [error, setError] = useState("");
@@ -43,8 +44,8 @@ export default function AuditLogs() {
                     <br />
                     <span className="muted">{x.actor?.email}</span>
                   </td>
-                  <td>{x.action}</td>
-                  <td>{x.entityType}</td>
+                  <td>{vi(x.action, "auditAction")}</td>
+                  <td>{vi(x.entityType, "auditEntity")}</td>
                   <td>{x.entityId ?? "—"}</td>
                 </tr>
               ))}

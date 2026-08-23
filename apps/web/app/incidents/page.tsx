@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import AppShell from "../../components/AppShell";
 import { Badge, Empty, ErrorBox, Loading } from "../../components/UI";
 import { api, dateTime } from "../../lib/api";
+import { vi } from "../../lib/i18n";
 
 export default function Incidents() {
   const [result, setResult] = useState<any>(null);
@@ -56,15 +57,20 @@ export default function Incidents() {
             "WAITING_FOR_PARTS",
             "AWAITING_CONFIRMATION",
             "COMPLETED",
+            "CANCELLED",
             "REOPENED",
           ].map((x) => (
-            <option key={x}>{x}</option>
+            <option key={x} value={x}>
+              {vi(x, "incidentStatus")}
+            </option>
           ))}
         </select>
         <select value={priority} onChange={(e) => setPriority(e.target.value)}>
           <option value="">Mọi mức ưu tiên</option>
           {["URGENT", "HIGH", "MEDIUM", "LOW"].map((x) => (
-            <option key={x}>{x}</option>
+            <option key={x} value={x}>
+              {vi(x, "priority")}
+            </option>
           ))}
         </select>
       </div>
@@ -104,14 +110,14 @@ export default function Incidents() {
                     <span className="muted">{item.asset?.location?.name}</span>
                   </td>
                   <td>
-                    <Badge value={item.priority} />
+                    <Badge value={item.priority} kind="priority" />
                   </td>
                   <td>
                     {item.assignedTechnician?.fullName ?? "Chưa phân công"}
                   </td>
                   <td>{dateTime(item.dueAt)}</td>
                   <td>
-                    <Badge value={item.status} />
+                    <Badge value={item.status} kind="incidentStatus" />
                   </td>
                 </tr>
               ))}

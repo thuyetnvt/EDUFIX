@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import AppShell from "../components/AppShell";
 import { Badge, ErrorBox, Loading, Stat } from "../components/UI";
 import { api, dateTime, money } from "../lib/api";
+import { vi } from "../lib/i18n";
 
 type Summary = {
   assets: number;
@@ -16,20 +17,38 @@ type Summary = {
   repairCostThisMonth: number;
   recent: any[];
   upcomingMaintenance: any[];
+  incidentsByStatus: Array<{ status: string; _count: number }>;
+};
+type TrendPoint = { date: string; total: number; completed: number };
+type FailingAsset = {
+  id: string;
+  assetCode: string;
+  name: string;
+  failureCount: number;
 };
 export default function Dashboard() {
   const [data, setData] = useState<Summary | null>(null);
+  const [trend, setTrend] = useState<TrendPoint[]>([]);
+  const [failingAssets, setFailingAssets] = useState<FailingAsset[]>([]);
   const [error, setError] = useState("");
   useEffect(() => {
-    api<Summary>("/dashboard/summary")
-      .then(setData)
+    Promise.all([
+      api<Summary>("/dashboard/summary"),
+      api<TrendPoint[]>("/dashboard/incident-trend"),
+      api<FailingAsset[]>("/dashboard/top-failing-assets"),
+    ])
+      .then(([summary, trendData, assets]) => {
+        setData(summary);
+        setTrend(trendData);
+        setFailingAssets(assets);
+      })
       .catch((e) => setError(e.message));
   }, []);
   return (
     <AppShell
       title="Tổng quan vận hành"
       actions={
-        <Link className="button" href="/incidents">
+        <Link className="button" href="/incidents/new">
           + Tạo phiếu
         </Link>
       }
@@ -37,7 +56,10 @@ export default function Dashboard() {
       <div className="page-head">
         <div>
           <h2>Tình hình hôm nay</h2>
-          <p>Các chỉ số tài sản và sự cố được cập nhật theo thời gian thực.</p>
+          <p>
+            Các chỉ số tài sản và sự cố được tổng hợp từ lần tải dữ liệu gần
+            nhất.
+          </p>
         </div>
       </div>
       <ErrorBox message={error} />
@@ -91,7 +113,7 @@ export default function Dashboard() {
                             "Chưa phân công"}
                         </td>
                         <td>
-                          <Badge value={item.status} />
+                          <Badge value={item.status} kind="incidentStatus" />
                         </td>
                       </tr>
                     ))}
@@ -133,11 +155,63 @@ export default function Dashboard() {
                 <div className="comment" key={task.id}>
                   <b>{task.asset?.name}</b>
                   <p>
-                    {task.plan?.title} · {dateTime(task.dueAt)}
+                    {task.plan?.name} · {dateTime(task.dueAt)}
                   </p>
                 </div>
               ))}
             </aside>
+          </section>
+          <section className="split section">
+            <div className="card">
+              <div className="card-header">
+                <h2>Xu hướng 30 ngày</h2>
+                <span className="muted">Tổng phiếu / đã hoàn tất</span>
+              </div>
+              <div className="trend-chart" aria-label="Biểu đồ xu hướng sự cố">
+                {trend.map((point) => (
+                  <div
+                    className="trend-column"
+                    key={point.date}
+                    title={`${point.date}: ${point.total} phiếu`}
+                  >
+                    <span
+                      style={{ height: `${Math.max(4, point.total * 12)}px` }}
+                    />
+                    <small>{new Date(point.date).getDate()}</small>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="card">
+              <div className="card-header">
+                <h2>Thiết bị có nhiều sự cố</h2>
+              </div>
+              <div className="metric-list">
+                {failingAssets.length === 0 ? (
+                  <span className="muted">Chưa có dữ liệu.</span>
+                ) : (
+                  failingAssets.map((asset) => (
+                    <div className="metric-line" key={asset.id}>
+                      <span>
+                        {asset.assetCode} · {asset.name}
+                      </span>
+                      <b>{asset.failureCount}</b>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="card-header section">
+                <h3>Phân bố trạng thái</h3>
+              </div>
+              <div className="metric-list">
+                {data.incidentsByStatus.map((item) => (
+                  <div className="metric-line" key={item.status}>
+                    <span>{vi(item.status, "incidentStatus")}</span>
+                    <b>{item._count}</b>
+                  </div>
+                ))}
+              </div>
+            </div>
           </section>
         </>
       )}

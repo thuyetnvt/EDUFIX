@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useState } from "react";
 import AppShell from "../../components/AppShell";
 import { Badge, ErrorBox, Loading, Stat } from "../../components/UI";
 import { api, dateTime, money } from "../../lib/api";
+import { vi } from "../../lib/i18n";
 export default function Inventory() {
   const [parts, setParts] = useState<any[] | null>(null);
   const [txs, setTxs] = useState<any[]>([]);
@@ -166,9 +167,10 @@ export default function Inventory() {
                           <Badge
                             value={
                               x.quantity <= x.minimumQuantity
-                                ? "OVERDUE"
-                                : "IN_STOCK"
+                                ? "LOW_STOCK"
+                                : "ACTIVE"
                             }
+                            kind="assetStatus"
                           />{" "}
                           {x.quantity} {x.unit}
                         </td>
@@ -223,7 +225,7 @@ export default function Inventory() {
             {txs.slice(0, 10).map((x) => (
               <div className="comment" key={x.id}>
                 <b>
-                  {x.type} · {x.part?.name} · {x.quantity}
+                  {vi(x.type, "stockType")} · {x.part?.name} · {x.quantity}
                 </b>
                 <p>
                   {x.note} · {dateTime(x.createdAt)} · {x.actor?.fullName}

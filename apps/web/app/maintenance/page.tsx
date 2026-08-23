@@ -3,6 +3,109 @@ import { FormEvent, useEffect, useState } from "react";
 import AppShell from "../../components/AppShell";
 import { Badge, ErrorBox, Loading, Stat } from "../../components/UI";
 import { api, dateTime, getCurrentUser } from "../../lib/api";
+import { vi } from "../../lib/i18n";
+
+function TaskActions({
+  task,
+  onDone,
+  onError,
+}: {
+  task: any;
+  onDone: () => void;
+  onError: (message: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const checklist = Array.isArray(task.plan?.checklist)
+    ? (task.plan.checklist as string[])
+    : [];
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [note, setNote] = useState("");
+  async function start() {
+    setBusy(true);
+    try {
+      await api(`/maintenance/tasks/${task.id}/start`, { method: "POST" });
+      onDone();
+    } catch (error) {
+      onError(
+        error instanceof Error ? error.message : "Không thể bắt đầu công việc",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function complete() {
+    setBusy(true);
+    try {
+      await api(`/maintenance/tasks/${task.id}/complete`, {
+        method: "POST",
+        body: JSON.stringify({
+          checklistResult: checklist.map((item) => ({
+            item,
+            completed: Boolean(checked[item]),
+          })),
+          note,
+        }),
+      });
+      onDone();
+    } catch (error) {
+      onError(
+        error instanceof Error ? error.message : "Không thể hoàn tất công việc",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (task.status === "PENDING")
+    return (
+      <button
+        className="button secondary"
+        disabled={busy}
+        onClick={() => void start()}
+      >
+        {busy ? "Đang gửi…" : "Bắt đầu"}
+      </button>
+    );
+  if (task.status !== "IN_PROGRESS") return <span>—</span>;
+  return (
+    <details className="task-actions">
+      <summary className="button">Hoàn tất</summary>
+      <div className="task-checklist">
+        {checklist.length === 0 ? (
+          <span className="muted">Kế hoạch chưa có checklist.</span>
+        ) : (
+          checklist.map((item) => (
+            <label key={item}>
+              <input
+                type="checkbox"
+                checked={Boolean(checked[item])}
+                onChange={(event) =>
+                  setChecked((current) => ({
+                    ...current,
+                    [item]: event.target.checked,
+                  }))
+                }
+              />
+              {item}
+            </label>
+          ))
+        )}
+        <textarea
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          placeholder="Ghi chú kết quả bảo trì"
+        />
+        <button
+          className="button"
+          disabled={busy}
+          onClick={() => void complete()}
+        >
+          {busy ? "Đang gửi…" : "Xác nhận hoàn tất"}
+        </button>
+      </div>
+    </details>
+  );
+}
+
 export default function Maintenance() {
   const [plans, setPlans] = useState<any[] | null>(null);
   const [tasks, setTasks] = useState<any[]>([]);
@@ -63,23 +166,6 @@ export default function Maintenance() {
       );
     }
   }
-  const act = async (id: string, path: string) => {
-    try {
-      await api(`/maintenance/tasks/${id}/${path}`, {
-        method: "POST",
-        body:
-          path === "complete"
-            ? JSON.stringify({
-                checklistResult: [],
-                note: "Hoàn thành từ dashboard",
-              })
-            : undefined,
-      });
-      load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Lỗi");
-    }
-  };
   return (
     <AppShell title="Bảo trì định kỳ">
       <ErrorBox message={error} />
@@ -203,26 +289,14 @@ export default function Maintenance() {
                       <td>{dateTime(x.dueAt)}</td>
                       <td>{x.technician?.fullName ?? "Chưa giao"}</td>
                       <td>
-                        <Badge value={x.status} />
+                        <Badge value={x.status} kind="maintenanceStatus" />
                       </td>
                       <td>
-                        {x.status === "PENDING" ? (
-                          <button
-                            className="button secondary"
-                            onClick={() => act(x.id, "start")}
-                          >
-                            Bắt đầu
-                          </button>
-                        ) : x.status === "IN_PROGRESS" ? (
-                          <button
-                            className="button"
-                            onClick={() => act(x.id, "complete")}
-                          >
-                            Hoàn tất
-                          </button>
-                        ) : (
-                          "—"
-                        )}
+                        <TaskActions
+                          task={x}
+                          onDone={() => void load()}
+                          onError={setError}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -251,7 +325,7 @@ export default function Maintenance() {
                       <td>{x.name}</td>
                       <td>{x.asset?.name}</td>
                       <td>
-                        {x.interval} {x.recurrenceType}
+                        {x.interval} {vi(x.recurrenceType, "recurrence")}
                       </td>
                       <td>{dateTime(x.nextDueAt)}</td>
                       <td>{x.checklist?.length ?? 0} mục</td>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, clearSession, CurrentUser, getCurrentUser } from "../lib/api";
+import { vi } from "../lib/i18n";
 
 const managerLinks = [
   ["/", "Tổng quan", "⌂"],
@@ -14,8 +15,8 @@ const managerLinks = [
   ["/inventory", "Kho vật tư", "▤"],
   ["/reports", "Báo cáo", "▥"],
   ["/users", "Người dùng", "♙"],
-  ["/audit-logs", "Nhật ký", "≡"],
 ];
+const adminLinks = [...managerLinks, ["/audit-logs", "Nhật ký", "≡"]];
 const reporterLinks = [
   ["/mobile/home", "Trang chủ", "⌂"],
   ["/mobile/scan", "Quét QR", "⌗"],
@@ -40,9 +41,18 @@ export default function AppShell({
   const router = useRouter();
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [open, setOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
   useEffect(() => {
     getCurrentUser()
-      .then(setUser)
+      .then((currentUser) => {
+        setUser(currentUser);
+        return api<any[]>("/notifications");
+      })
+      .then((notifications) =>
+        setUnread(
+          notifications.filter((notification) => !notification.readAt).length,
+        ),
+      )
       .catch(() => {
         clearSession();
         router.replace("/login");
@@ -53,7 +63,64 @@ export default function AppShell({
       ? reporterLinks
       : user?.role === "TECHNICIAN"
         ? technicianLinks
-        : managerLinks;
+        : user?.role === "ADMIN"
+          ? adminLinks
+          : managerLinks;
+  useEffect(() => {
+    if (!user) return;
+    const allowed =
+      user.role === "REPORTER"
+        ? [
+            "/mobile/home",
+            "/mobile/scan",
+            "/mobile/my-incidents",
+            "/notifications",
+          ]
+        : user.role === "TECHNICIAN"
+          ? [
+              "/technician/home",
+              "/technician/maintenance",
+              "/incidents",
+              "/notifications",
+            ]
+          : user.role === "ADMIN"
+            ? [
+                "/",
+                "/assets",
+                "/incidents",
+                "/locations",
+                "/maintenance",
+                "/inventory",
+                "/reports",
+                "/users",
+                "/audit-logs",
+                "/notifications",
+              ]
+            : [
+                "/",
+                "/assets",
+                "/incidents",
+                "/locations",
+                "/maintenance",
+                "/inventory",
+                "/reports",
+                "/users",
+                "/notifications",
+              ];
+    if (
+      !allowed.some(
+        (path) =>
+          pathname === path || (path !== "/" && pathname.startsWith(path)),
+      )
+    )
+      router.replace(
+        user.role === "REPORTER"
+          ? "/mobile/home"
+          : user.role === "TECHNICIAN"
+            ? "/technician/home"
+            : "/",
+      );
+  }, [pathname, router, user]);
   async function logout() {
     try {
       await api("/auth/logout", {
@@ -106,6 +173,11 @@ export default function AppShell({
         <div className="sidebar-foot">
           <Link href="/notifications">
             🔔 <span>Thông báo</span>
+            {unread > 0 && (
+              <b className="notification-count">
+                {unread > 99 ? "99+" : unread}
+              </b>
+            )}
           </Link>
           <button onClick={logout}>
             ↪ <span>Đăng xuất</span>
@@ -129,26 +201,56 @@ export default function AppShell({
               ☰
             </button>
             <div>
-              <p className="eyebrow">EDUFIX OPERATIONS</p>
+              <p className="eyebrow">VẬN HÀNH EDUFIX</p>
               <h1>{title}</h1>
             </div>
           </div>
           <div className="top-actions">
             {actions}
-            <Link className="notification-button" href="/notifications">
+            <Link
+              className="notification-button"
+              href="/notifications"
+              aria-label="Thông báo"
+            >
               🔔
+              {unread > 0 && (
+                <b className="notification-count">
+                  {unread > 99 ? "99+" : unread}
+                </b>
+              )}
             </Link>
             <div className="user-avatar">
               {user?.fullName?.slice(0, 1) ?? "…"}
             </div>
             <div className="user">
               <strong>{user?.fullName ?? "Đang tải"}</strong>
-              <span>{user?.role ? user.role.replaceAll("_", " ") : ""}</span>
+              <span>{user?.role ? vi(user.role, "role") : ""}</span>
             </div>
           </div>
         </header>
         {children}
       </main>
+      {user && ["REPORTER", "TECHNICIAN"].includes(user.role) && (
+        <nav className="mobile-bottom" aria-label="Điều hướng di động">
+          {links.slice(0, 3).map(([href, label, icon]) => (
+            <Link
+              key={href}
+              href={href}
+              className={pathname === href ? "active" : ""}
+            >
+              <i>{icon}</i>
+              <span>{label}</span>
+            </Link>
+          ))}
+          <Link
+            href="/notifications"
+            className={pathname === "/notifications" ? "active" : ""}
+          >
+            <i>🔔</i>
+            <span>Thông báo</span>
+          </Link>
+        </nav>
+      )}
     </div>
   );
 }

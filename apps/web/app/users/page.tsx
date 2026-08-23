@@ -116,20 +116,27 @@ export default function Users() {
                   </td>
                   <td>{x.email}</td>
                   <td>
-                    <Badge value={x.role} />
+                    <Badge value={x.role} kind="role" />
                   </td>
                   <td>{x.department ?? "—"}</td>
                   <td>{dateTime(x.lastLoginAt)}</td>
                   <td>
-                    <Badge value={x.active ? "ACTIVE" : "DISABLED"} />
+                    <Badge
+                      value={x.active ? "ACTIVE" : "DISABLED"}
+                      kind="accountStatus"
+                    />
                   </td>
                   <td>
-                    <button
-                      className="button secondary"
-                      onClick={() => toggle(x)}
-                    >
-                      {x.active ? "Khóa" : "Mở khóa"}
-                    </button>
+                    {isAdmin ? (
+                      <button
+                        className="button secondary"
+                        onClick={() => toggle(x)}
+                      >
+                        {x.active ? "Khóa" : "Mở khóa"}
+                      </button>
+                    ) : (
+                      <span className="muted">Chỉ xem</span>
+                    )}
                   </td>
                 </tr>
               ))}

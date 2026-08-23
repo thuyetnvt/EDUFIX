@@ -61,13 +61,14 @@ export default function TechnicianHome() {
               <b>
                 {x.incidentCode} · {x.title}
               </b>
-              <Badge value={x.priority} />
+              <Badge value={x.priority} kind="priority" />
             </header>
             <p>
               {x.asset?.name} · {x.asset?.location?.name}
             </p>
             <small>
-              Hạn {dateTime(x.dueAt)} · <Badge value={x.status} />
+              Hạn {dateTime(x.dueAt)} ·{" "}
+              <Badge value={x.status} kind="incidentStatus" />
             </small>
           </Link>
         ))}

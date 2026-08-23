@@ -1,5 +1,9 @@
 "use client";
 
+export { label } from "./i18n";
+export type { LabelKind } from "./i18n";
+import { vi as translate } from "./i18n";
+
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
@@ -86,7 +90,7 @@ export async function getCurrentUser() {
   return api<CurrentUser>("/auth/me");
 }
 
-export const vi = (value?: string) => (value ?? "—").replaceAll("_", " ");
+export const vi = translate;
 export const dateTime = (value?: string) =>
   value
     ? new Intl.DateTimeFormat("vi-VN", {

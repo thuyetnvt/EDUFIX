@@ -14,6 +14,7 @@ import { PrismaService } from "./prisma.service";
 import { AiService } from "./ai.service";
 import { AuditService } from "./audit.service";
 import { syncAssetStatus } from "./asset-status";
+import { incidentStatusLabel } from "./labels";
 import { canTransition } from "./incident-flow";
 import {
   AddCommentDto,
@@ -298,7 +299,7 @@ export class IncidentsService {
     const incident = await this.ensureAccess(id, user);
     if (!canTransition(incident.status, body.status))
       throw new BadRequestException(
-        `Không thể chuyển từ ${incident.status} sang ${body.status}`,
+        `Không thể chuyển từ ${incidentStatusLabel[incident.status]} sang ${incidentStatusLabel[body.status]}`,
       );
     if (user.role === Role.REPORTER)
       throw new ForbiddenException(
@@ -333,7 +334,7 @@ export class IncidentsService {
           userId: incident.reporterId,
           type: NotificationType.INCIDENT_UPDATED,
           title: "Phiếu được cập nhật",
-          message: `${incident.incidentCode} chuyển sang ${body.status}`,
+          message: `${incident.incidentCode} chuyển sang ${incidentStatusLabel[body.status]}`,
           entityType: "Incident",
           entityId: id,
         },
