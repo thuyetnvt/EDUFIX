@@ -3,9 +3,15 @@ import {
   ForbiddenException,
   Injectable,
 } from "@nestjs/common";
-import { NotificationType, Role, StockTransactionType } from "@prisma/client";
+import {
+  NotificationType,
+  Prisma,
+  Role,
+  StockTransactionType,
+} from "@prisma/client";
 import { PrismaService } from "./prisma.service";
 import { AuditService } from "./audit.service";
+import { nextStockQuantity } from "./inventory-flow";
 import {
   CreatePartDto,
   CreateStockTransactionDto,
@@ -84,29 +90,47 @@ export class InventoryService {
     this.manager(user);
     if (body.quantity <= 0 && body.type !== StockTransactionType.ADJUSTMENT)
       throw new BadRequestException("Số lượng phải lớn hơn 0");
-    const part = await this.prisma.part.findUniqueOrThrow({
-      where: { id: body.partId },
-    });
-    const nextQuantity =
-      body.type === StockTransactionType.STOCK_IN
-        ? part.quantity + body.quantity
-        : body.type === StockTransactionType.STOCK_OUT
-          ? part.quantity - body.quantity
-          : body.quantity;
-    if (nextQuantity < 0)
-      throw new BadRequestException(
-        `Không đủ tồn kho. Hiện còn ${part.quantity} ${part.unit}`,
-      );
     const result = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.part.update({
-        where: { id: part.id },
-        data: {
-          quantity: nextQuantity,
-          ...(body.unitPrice !== undefined
-            ? { unitPrice: body.unitPrice }
-            : {}),
-        },
+      const part = await tx.part.findUniqueOrThrow({
+        where: { id: body.partId },
       });
+      const nextQuantity = nextStockQuantity(
+        part.quantity,
+        body.type,
+        body.quantity,
+      );
+      if (nextQuantity < 0)
+        throw new BadRequestException(
+          `Không đủ tồn kho. Hiện còn ${part.quantity} ${part.unit}`,
+        );
+      const updated =
+        body.type === StockTransactionType.STOCK_OUT
+          ? await tx.part
+              .updateMany({
+                where: { id: part.id, quantity: { gte: body.quantity } },
+                data: {
+                  quantity: { decrement: body.quantity },
+                  ...(body.unitPrice !== undefined
+                    ? { unitPrice: body.unitPrice }
+                    : {}),
+                },
+              })
+              .then(async (result) => {
+                if (result.count !== 1)
+                  throw new BadRequestException(
+                    "Tồn kho đã thay đổi, không đủ số lượng để xuất",
+                  );
+                return tx.part.findUniqueOrThrow({ where: { id: part.id } });
+              })
+          : await tx.part.update({
+              where: { id: part.id },
+              data: {
+                quantity: nextQuantity,
+                ...(body.unitPrice !== undefined
+                  ? { unitPrice: body.unitPrice }
+                  : {}),
+              },
+            });
       const transaction = await tx.stockTransaction.create({
         data: {
           partId: part.id,
@@ -147,14 +171,18 @@ export class InventoryService {
             })),
           });
       }
-      return { part: updated, transaction };
-    });
+      return {
+        part: updated,
+        transaction,
+        previousQuantity: part.quantity,
+      };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     await this.audit.record(
       user.sub,
       body.type,
       "Part",
-      part.id,
-      { quantity: part.quantity },
+      body.partId,
+      { quantity: result.previousQuantity },
       { quantity: result.part.quantity },
     );
     return result;

@@ -23,8 +23,8 @@ services:
     environment:
       DATABASE_URL: postgresql://edufix:edufix@postgres:5432/edufix?schema=public
       JWT_SECRET: ${JWT_SECRET:-replace-this-before-production}
-      WEB_ORIGIN: http://localhost:3000
-      PUBLIC_WEB_URL: http://localhost:3000
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      PUBLIC_WEB_URL: ${PUBLIC_WEB_URL:-http://localhost:3000}
       API_PORT: 4000
       API_HOST: 0.0.0.0
       AI_PROVIDER: ${AI_PROVIDER:-rule-based}
@@ -44,7 +44,7 @@ services:
       context: .
       dockerfile: Dockerfile.web
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
     ports:
       - "3000:3000"
     depends_on:

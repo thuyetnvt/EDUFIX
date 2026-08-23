@@ -6,13 +6,14 @@ import {
 } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import {
-  AssetStatus,
   MaintenanceTaskStatus,
   RecurrenceType,
   Role,
 } from "@prisma/client";
 import { PrismaService } from "./prisma.service";
 import { AuditService } from "./audit.service";
+import { syncAssetStatus } from "./asset-status";
+import { nextMaintenanceDate } from "./maintenance-flow";
 import {
   CompleteMaintenanceTaskDto,
   CreateMaintenancePlanDto,
@@ -28,17 +29,11 @@ export class MaintenanceService {
     private readonly audit: AuditService,
   ) {}
 
-  private nextDate(date: Date, recurrence: RecurrenceType, interval: number) {
-    const next = new Date(date);
-    if (recurrence === RecurrenceType.WEEKLY)
-      next.setDate(next.getDate() + 7 * interval);
-    if (recurrence === RecurrenceType.MONTHLY)
-      next.setMonth(next.getMonth() + interval);
-    if (recurrence === RecurrenceType.QUARTERLY)
-      next.setMonth(next.getMonth() + 3 * interval);
-    if (recurrence === RecurrenceType.YEARLY)
-      next.setFullYear(next.getFullYear() + interval);
-    return next;
+  private assertTaskAccess(user: CurrentUser) {
+    if (user.role === Role.REPORTER)
+      throw new ForbiddenException(
+        "Người báo không có quyền truy cập công việc bảo trì",
+      );
   }
 
   async create(user: CurrentUser, body: CreateMaintenancePlanDto) {
@@ -114,7 +109,8 @@ export class MaintenanceService {
     for (const plan of plans) await this.generateForPlan(plan.id);
   }
 
-  listPlans() {
+  listPlans(user: CurrentUser) {
+    this.assertTaskAccess(user);
     return this.prisma.maintenancePlan.findMany({
       include: {
         asset: { include: { location: true } },
@@ -125,7 +121,8 @@ export class MaintenanceService {
     });
   }
 
-  async getPlan(id: string) {
+  async getPlan(user: CurrentUser, id: string) {
+    this.assertTaskAccess(user);
     const plan = await this.prisma.maintenancePlan.findUnique({
       where: { id },
       include: {
@@ -139,6 +136,7 @@ export class MaintenanceService {
   }
 
   listTasks(user: CurrentUser) {
+    this.assertTaskAccess(user);
     return this.prisma.maintenanceTask.findMany({
       where: user.role === Role.TECHNICIAN ? { technicianId: user.sub } : {},
       include: {
@@ -151,6 +149,7 @@ export class MaintenanceService {
   }
 
   async getTask(user: CurrentUser, id: string) {
+    this.assertTaskAccess(user);
     const task = await this.prisma.maintenanceTask.findUnique({
       where: { id },
       include: {
@@ -166,6 +165,7 @@ export class MaintenanceService {
   }
 
   async start(user: CurrentUser, id: string) {
+    this.assertTaskAccess(user);
     const task = await this.prisma.maintenanceTask.findUniqueOrThrow({
       where: { id },
     });
@@ -174,14 +174,12 @@ export class MaintenanceService {
     if (task.status !== MaintenanceTaskStatus.PENDING)
       throw new BadRequestException("Công việc không ở trạng thái chờ");
     return this.prisma.$transaction(async (tx) => {
-      await tx.asset.update({
-        where: { id: task.assetId },
-        data: { status: AssetStatus.MAINTENANCE },
-      });
-      return tx.maintenanceTask.update({
+      const started = await tx.maintenanceTask.update({
         where: { id },
         data: { status: MaintenanceTaskStatus.IN_PROGRESS },
       });
+      await syncAssetStatus(tx, task.assetId);
+      return started;
     });
   }
 
@@ -190,6 +188,7 @@ export class MaintenanceService {
     id: string,
     body: CompleteMaintenanceTaskDto,
   ) {
+    this.assertTaskAccess(user);
     const task = await this.prisma.maintenanceTask.findUniqueOrThrow({
       where: { id },
       include: { plan: true },
@@ -208,17 +207,14 @@ export class MaintenanceService {
           note: body.note,
         },
       });
-      await tx.asset.update({
-        where: { id: task.assetId },
-        data: { status: AssetStatus.ACTIVE },
-      });
+      await syncAssetStatus(tx, task.assetId);
       if (task.plan.recurrenceType === RecurrenceType.ONE_TIME)
         await tx.maintenancePlan.update({
           where: { id: task.planId },
           data: { active: false },
         });
       else {
-        const nextDueAt = this.nextDate(
+        const nextDueAt = nextMaintenanceDate(
           task.dueAt,
           task.plan.recurrenceType,
           task.plan.interval,

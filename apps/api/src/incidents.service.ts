@@ -4,7 +4,6 @@ import {
   Injectable,
 } from "@nestjs/common";
 import {
-  AssetStatus,
   IncidentStatus,
   NotificationType,
   Prisma,
@@ -14,6 +13,7 @@ import {
 import { PrismaService } from "./prisma.service";
 import { AiService } from "./ai.service";
 import { AuditService } from "./audit.service";
+import { syncAssetStatus } from "./asset-status";
 import { canTransition } from "./incident-flow";
 import {
   AddCommentDto,
@@ -190,10 +190,7 @@ export class IncidentsService {
         },
         include: { asset: { include: { location: true } } },
       });
-      await tx.asset.update({
-        where: { id: asset.id },
-        data: { status: AssetStatus.FAULTY },
-      });
+      await syncAssetStatus(tx, asset.id);
       const managers = await tx.user.findMany({
         where: {
           role: { in: [Role.ADMIN, Role.FACILITY_MANAGER] },
@@ -341,14 +338,7 @@ export class IncidentsService {
           entityId: id,
         },
       });
-      if (
-        body.status === IncidentStatus.IN_PROGRESS ||
-        body.status === IncidentStatus.WAITING_FOR_PARTS
-      )
-        await tx.asset.update({
-          where: { id: incident.assetId },
-          data: { status: AssetStatus.REPAIRING },
-        });
+      await syncAssetStatus(tx, incident.assetId);
       return next;
     });
     await this.audit.record(
@@ -486,12 +476,7 @@ export class IncidentsService {
           note: body.reason,
         },
       });
-      await tx.asset.update({
-        where: { id: incident.assetId },
-        data: {
-          status: body.resolved ? AssetStatus.ACTIVE : AssetStatus.FAULTY,
-        },
-      });
+      await syncAssetStatus(tx, incident.assetId);
       return next;
     });
     await this.audit.record(

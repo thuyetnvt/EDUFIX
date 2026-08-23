@@ -26,11 +26,12 @@ async function bootstrap() {
     .setVersion("1.0")
     .addBearerAuth()
     .build();
-  SwaggerModule.setup(
-    "api/docs",
-    app,
-    SwaggerModule.createDocument(app, config),
-  );
+  if (process.env.NODE_ENV !== "production")
+    SwaggerModule.setup(
+      "api/docs",
+      app,
+      SwaggerModule.createDocument(app, config),
+    );
   await app.listen(
     Number(process.env.API_PORT ?? 4000),
     process.env.API_HOST ?? "0.0.0.0",

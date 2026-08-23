@@ -23,8 +23,8 @@ import {
 @Controller("api/v1/maintenance")
 export class MaintenanceController {
   constructor(private readonly maintenance: MaintenanceService) {}
-  @Get("plans") plans() {
-    return this.maintenance.listPlans();
+  @Get("plans") plans(@Req() req: any) {
+    return this.maintenance.listPlans(req.user);
   }
   @Post("plans") create(
     @Req() req: any,
@@ -32,8 +32,8 @@ export class MaintenanceController {
   ) {
     return this.maintenance.create(req.user, body);
   }
-  @Get("plans/:id") getPlan(@Param("id") id: string) {
-    return this.maintenance.getPlan(id);
+  @Get("plans/:id") getPlan(@Req() req: any, @Param("id") id: string) {
+    return this.maintenance.getPlan(req.user, id);
   }
   @Patch("plans/:id") update(
     @Req() req: any,

@@ -49,6 +49,11 @@ test(
     });
     assert.equal(forbiddenUsers.response.status, 403);
 
+    const forbiddenMaintenance = await request("/maintenance/tasks", {
+      headers: auth(reporter.accessToken),
+    });
+    assert.equal(forbiddenMaintenance.response.status, 403);
+
     const refreshed = await request("/auth/refresh", {
       method: "POST",
       body: JSON.stringify({ refreshToken: reporter.refreshToken }),
@@ -61,12 +66,31 @@ test(
     });
     assert.equal(reusedRefresh.response.status, 401);
 
-    const assets = await request("/assets?pageSize=1", {
-      headers: auth(reporter.accessToken),
+    const allAssets = await request("/assets?pageSize=100", {
+      headers: auth(manager.accessToken),
     });
-    assert.equal(assets.response.status, 200);
-    assert.ok(assets.body.items[0].id);
-    const qr = await request(`/assets/${assets.body.items[0].id}/qr`, {
+    assert.equal(allAssets.response.status, 200);
+    let asset;
+    for (const candidate of allAssets.body.items) {
+      const existing = await request(
+        `/incidents?assetId=${candidate.id}&pageSize=100`,
+        { headers: auth(manager.accessToken) },
+      );
+      const openStatuses = new Set([
+        "NEW",
+        "ASSIGNED",
+        "IN_PROGRESS",
+        "WAITING_FOR_PARTS",
+        "AWAITING_CONFIRMATION",
+        "REOPENED",
+      ]);
+      if (!existing.body.items.some((item) => openStatuses.has(item.status))) {
+        asset = candidate;
+        break;
+      }
+    }
+    assert.ok(asset?.id, "Seed data phải có ít nhất một thiết bị không có phiếu mở");
+    const qr = await request(`/assets/${asset.id}/qr`, {
       headers: auth(reporter.accessToken),
     });
     assert.equal(qr.response.status, 200);
@@ -77,7 +101,7 @@ test(
       method: "POST",
       headers: auth(reporter.accessToken),
       body: JSON.stringify({
-        assetId: assets.body.items[0].id,
+        assetId: asset.id,
         title: "Kiểm thử E2E thiết bị không hoạt động",
         description: "Phiếu tự động dùng để xác nhận toàn bộ quy trình EduFix.",
       }),
@@ -86,6 +110,12 @@ test(
     assert.equal(created.body.status, "NEW");
     assert.ok(created.body.aiSuggestion);
     assert.ok(Array.isArray(created.body.possibleDuplicates));
+
+    const technicianBeforeAssignment = await request(
+      `/incidents/${created.body.id}`,
+      { headers: auth(technician.accessToken) },
+    );
+    assert.equal(technicianBeforeAssignment.response.status, 403);
 
     const imageForm = new FormData();
     imageForm.append(
@@ -116,6 +146,22 @@ test(
       `${new URL(base).origin}${attachment.fileUrl}`,
     );
     assert.equal(servedFile.status, 200);
+
+    const fakeImageForm = new FormData();
+    fakeImageForm.append(
+      "file",
+      new Blob([Buffer.from("not an image")], { type: "image/png" }),
+      "fake.png",
+    );
+    const fakeImageResponse = await fetch(
+      `${base}/incidents/${created.body.id}/attachments`,
+      {
+        method: "POST",
+        headers: auth(reporter.accessToken),
+        body: fakeImageForm,
+      },
+    );
+    assert.equal(fakeImageResponse.status, 400);
 
     const assigned = await request(`/incidents/${created.body.id}/assign`, {
       method: "POST",

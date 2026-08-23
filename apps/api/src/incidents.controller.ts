@@ -13,9 +13,10 @@ import {
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiConsumes, ApiTags } from "@nestjs/swagger";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { diskStorage } from "multer";
-import { extname, resolve } from "path";
+import { memoryStorage } from "multer";
+import { resolve } from "path";
 import { mkdirSync, existsSync } from "fs";
+import { writeFile } from "fs/promises";
 import { randomBytes } from "crypto";
 import { AttachmentKind } from "@prisma/client";
 import { AuthGuard } from "./auth.guard";
@@ -35,6 +36,30 @@ import { PrismaService } from "./prisma.service";
 
 const uploadDir = resolve(process.cwd(), "uploads");
 if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
+
+function detectedImageMime(buffer: Buffer) {
+  if (
+    buffer.length >= 8 &&
+    buffer.subarray(0, 8).equals(
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    )
+  )
+    return "image/png";
+  if (
+    buffer.length >= 3 &&
+    buffer[0] === 0xff &&
+    buffer[1] === 0xd8 &&
+    buffer[2] === 0xff
+  )
+    return "image/jpeg";
+  if (
+    buffer.length >= 12 &&
+    buffer.toString("ascii", 0, 4) === "RIFF" &&
+    buffer.toString("ascii", 8, 12) === "WEBP"
+  )
+    return "image/webp";
+  return null;
+}
 
 @ApiTags("incidents")
 @ApiBearerAuth()
@@ -137,14 +162,7 @@ export class IncidentsController {
   @Post(":id/attachments")
   @UseInterceptors(
     FileInterceptor("file", {
-      storage: diskStorage({
-        destination: uploadDir,
-        filename: (_req, file, callback) =>
-          callback(
-            null,
-            `${randomBytes(16).toString("hex")}${extname(file.originalname).toLowerCase()}`,
-          ),
-      }),
+      storage: memoryStorage(),
       limits: { fileSize: 5 * 1024 * 1024 },
       fileFilter: (_req, file, callback) =>
         callback(
@@ -163,13 +181,24 @@ export class IncidentsController {
   ) {
     await this.incidents.detail(id, req.user);
     if (!file) throw new BadRequestException("Vui lòng chọn ảnh");
+    const actualMime = detectedImageMime(file.buffer);
+    if (!actualMime || actualMime !== file.mimetype)
+      throw new BadRequestException("Nội dung tệp không khớp định dạng ảnh");
+    const extension =
+      actualMime === "image/jpeg"
+        ? ".jpg"
+        : actualMime === "image/png"
+          ? ".png"
+          : ".webp";
+    const fileName = `${randomBytes(16).toString("hex")}${extension}`;
+    await writeFile(resolve(uploadDir, fileName), file.buffer);
     return this.prisma.attachment.create({
       data: {
         incidentId: id,
         uploadedById: req.user.sub,
         fileName: file.originalname,
-        fileUrl: `/api/v1/files/${file.filename}`,
-        mimeType: file.mimetype,
+        fileUrl: `/api/v1/files/${fileName}`,
+        mimeType: actualMime,
         fileSize: file.size,
         kind: body.kind ?? AttachmentKind.INCIDENT,
       },

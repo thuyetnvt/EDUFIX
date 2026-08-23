@@ -30,10 +30,18 @@ import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { APP_GUARD } from "@nestjs/core";
 import { ScheduledAlertsService } from "./scheduled-alerts.service";
 
+const jwtSecret = process.env.JWT_SECRET;
+if (
+  !jwtSecret ||
+  (process.env.NODE_ENV === "production" &&
+    jwtSecret.startsWith("replace"))
+)
+  throw new Error("JWT_SECRET phải được cấu hình bằng giá trị ngẫu nhiên an toàn");
+
 @Module({
   imports: [
     JwtModule.register({
-      secret: process.env.JWT_SECRET ?? "dev-only-secret",
+      secret: jwtSecret,
       signOptions: { expiresIn: "15m" },
     }),
     ScheduleModule.forRoot(),
