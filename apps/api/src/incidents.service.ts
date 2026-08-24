@@ -85,6 +85,16 @@ export class IncidentsService {
             },
           }
         : {}),
+      ...(query.dateFrom || query.dateTo
+        ? {
+            createdAt: {
+              ...(query.dateFrom ? { gte: new Date(query.dateFrom) } : {}),
+              ...(query.dateTo
+                ? { lte: new Date(`${query.dateTo}T23:59:59.999Z`) }
+                : {}),
+            },
+          }
+        : {}),
     };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.incident.findMany({
@@ -221,6 +231,25 @@ export class IncidentsService {
       created,
     );
     return { ...created, aiSuggestion: suggestion, possibleDuplicates };
+  }
+
+  async preview(body: CreateIncidentDto) {
+    const asset = await this.prisma.asset.findUniqueOrThrow({
+      where: { id: body.assetId },
+      include: { category: true, location: true },
+    });
+    const suggestion = await this.ai.classify(
+      body.title,
+      body.description,
+      asset.category?.name,
+      asset.location?.name,
+    );
+    const possibleDuplicates = await this.ai.findDuplicates(
+      asset.id,
+      body.title,
+      body.description,
+    );
+    return { suggestion, possibleDuplicates };
   }
 
   async assign(id: string, user: CurrentUser, body: AssignIncidentDto) {

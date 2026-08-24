@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -25,6 +26,7 @@ export class UpdateMaintenancePlanDto {
   @IsOptional() @IsString() name?: string;
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsString() assignedTechnicianId?: string;
+  @IsOptional() @IsBoolean() active?: boolean;
 }
 
 export class CompleteMaintenanceTaskDto {

@@ -33,7 +33,9 @@ export class DashboardController {
       overdue,
       completed,
       incidents,
+      priorities,
       recent,
+      urgentOrOverdue,
       upcomingMaintenance,
     ] = await Promise.all([
       this.prisma.asset.count({ where: { active: true } }),
@@ -73,6 +75,7 @@ export class DashboardController {
         },
       }),
       this.prisma.incident.groupBy({ by: ["status"], _count: true }),
+      this.prisma.incident.groupBy({ by: ["priority"], _count: true }),
       this.prisma.incident.findMany({
         take: 8,
         orderBy: { createdAt: "desc" },
@@ -80,6 +83,18 @@ export class DashboardController {
           asset: true,
           assignedTechnician: { select: { fullName: true } },
         },
+      }),
+      this.prisma.incident.findMany({
+        where: {
+          status: { notIn: [IncidentStatus.COMPLETED, IncidentStatus.CANCELLED] },
+          OR: [
+            { priority: { in: ["URGENT", "HIGH"] } },
+            { dueAt: { lt: new Date() } },
+          ],
+        },
+        take: 6,
+        orderBy: [{ priority: "asc" }, { dueAt: "asc" }],
+        include: { asset: { select: { name: true, assetCode: true } } },
       }),
       this.prisma.maintenanceTask.findMany({
         where: {
@@ -144,6 +159,8 @@ export class DashboardController {
         )
         .toNumber(),
       incidentsByStatus: incidents,
+      incidentsByPriority: priorities,
+      urgentOrOverdue,
       recent,
       upcomingMaintenance,
     };

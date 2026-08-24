@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import AppShell from "../../components/AppShell";
 import { Badge, ErrorBox, Loading, Stat } from "../../components/UI";
@@ -19,6 +20,7 @@ function TaskActions({
     ? (task.plan.checklist as string[])
     : [];
   const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [notes, setNotes] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
   async function start() {
     setBusy(true);
@@ -42,6 +44,7 @@ function TaskActions({
           checklistResult: checklist.map((item) => ({
             item,
             completed: Boolean(checked[item]),
+            ...(notes[item] ? { note: notes[item] } : {}),
           })),
           note,
         }),
@@ -74,19 +77,10 @@ function TaskActions({
           <span className="muted">Kế hoạch chưa có checklist.</span>
         ) : (
           checklist.map((item) => (
-            <label key={item}>
-              <input
-                type="checkbox"
-                checked={Boolean(checked[item])}
-                onChange={(event) =>
-                  setChecked((current) => ({
-                    ...current,
-                    [item]: event.target.checked,
-                  }))
-                }
-              />
-              {item}
-            </label>
+            <div className="checklist-item" key={item}>
+              <label><input type="checkbox" checked={Boolean(checked[item])} onChange={(event) => setChecked((current) => ({ ...current, [item]: event.target.checked }))} />{item}</label>
+              {!checked[item] && <input value={notes[item] ?? ""} onChange={(event) => setNotes((current) => ({ ...current, [item]: event.target.value }))} placeholder="Lý do bỏ qua (bắt buộc nếu chưa hoàn thành)" />}
+            </div>
           ))
         )}
         <textarea
@@ -292,6 +286,7 @@ export default function Maintenance() {
                         <Badge value={x.status} kind="maintenanceStatus" />
                       </td>
                       <td>
+                        <Link className="link-button" href={`/maintenance/tasks/${x.id}`}>Chi tiết</Link>{" "}
                         <TaskActions
                           task={x}
                           onDone={() => void load()}

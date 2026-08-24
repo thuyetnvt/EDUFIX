@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import AppShell from "../../../components/AppShell";
 import { Badge, ErrorBox, Loading } from "../../../components/UI";
-import { api, dateTime, getCurrentUser, money } from "../../../lib/api";
+import { API_URL, api, dateTime, getCurrentUser, money } from "../../../lib/api";
 
 export default function AssetDetail() {
   const { id } = useParams<{ id: string }>();
@@ -14,6 +14,8 @@ export default function AssetDetail() {
   const [error, setError] = useState("");
   const [manager, setManager] = useState(false);
   const [locations, setLocations] = useState<any[]>([]);
+  const [tab, setTab] = useState<"overview" | "incidents" | "maintenance" | "documents">("overview");
+  const [imageBusy, setImageBusy] = useState(false);
   const load = () =>
     Promise.all([
       api<any>(`/assets/${id}`),
@@ -57,6 +59,7 @@ export default function AssetDetail() {
     }
   }
   async function regenerateQr() {
+    if (!window.confirm("Tạo lại mã QR sẽ làm mã cũ không còn hiệu lực. Tiếp tục?")) return;
     try {
       const result = await api<any>(`/assets/${id}/qr/regenerate`, {
         method: "POST",
@@ -67,6 +70,19 @@ export default function AssetDetail() {
       setError(
         caught instanceof Error ? caught.message : "Không thể tạo lại QR",
       );
+    }
+  }
+  async function uploadImage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setImageBusy(true);
+    try {
+      await api(`/assets/${id}/image`, { method: "POST", body: new FormData(event.currentTarget) });
+      event.currentTarget.reset();
+      await load();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Không thể tải ảnh thiết bị");
+    } finally {
+      setImageBusy(false);
     }
   }
   return (
@@ -83,12 +99,17 @@ export default function AssetDetail() {
         <Loading />
       ) : (
         <>
-          <div className="detail-grid">
+          <div className="tabs asset-tabs" role="tablist">
+            {[["overview", "Tổng quan"], ["incidents", "Sự cố"], ["maintenance", "Bảo trì"], ["documents", "Tài liệu"]].map(([value, label]) => <button key={value} role="tab" aria-selected={tab === value} className={tab === value ? "active" : ""} onClick={() => setTab(value as typeof tab)}>{label}</button>)}
+          </div>
+          <div className={`detail-grid ${tab === "overview" ? "" : "hidden"}`}>
             <section className="card">
               <div className="card-header">
                 <h2>{item.assetCode}</h2>
                 <Badge value={item.status} kind="assetStatus" />
               </div>
+              {item.imageUrl && <img className="asset-photo" src={`${new URL(API_URL).origin}${item.imageUrl}`} alt={`Ảnh ${item.name}`} />}
+              {manager && <form className="asset-image-form" onSubmit={uploadImage}><label>Ảnh thiết bị<input name="file" type="file" accept="image/jpeg,image/png,image/webp" required /></label><button className="button secondary" disabled={imageBusy}>{imageBusy ? "Đang tải…" : "Cập nhật ảnh"}</button></form>}
               <div className="definition">
                 <div>
                   <span>Nhóm</span>
@@ -120,12 +141,6 @@ export default function AssetDetail() {
                   <span>Giá mua</span>
                   <strong>{money(Number(item.purchasePrice ?? 0))}</strong>
                 </div>
-                <div>
-                  <span>QR Token</span>
-                  <strong style={{ wordBreak: "break-all" }}>
-                    {item.qrToken}
-                  </strong>
-                </div>
               </div>
               {item.description && <p>{item.description}</p>}
               {qr && (
@@ -150,7 +165,7 @@ export default function AssetDetail() {
                     {manager && (
                       <button
                         className="button secondary"
-                        onClick={regenerateQr}
+                        onClick={() => void regenerateQr()}
                       >
                         Tạo lại QR
                       </button>
@@ -206,7 +221,7 @@ export default function AssetDetail() {
               )}
             </aside>
           </div>
-          <section className="card section">
+          {tab === "incidents" && <section className="card section">
             <div className="card-header">
               <h2>Lịch sử sự cố</h2>
             </div>
@@ -242,7 +257,9 @@ export default function AssetDetail() {
                 </tbody>
               </table>
             </div>
-          </section>
+          </section>}
+          {tab === "maintenance" && <section className="card section"><div className="card-header"><h2>Lịch sử bảo trì</h2></div><div className="table-wrap"><table className="table"><thead><tr><th>Kế hoạch</th><th>Hạn</th><th>Trạng thái</th><th>Kỹ thuật viên</th></tr></thead><tbody>{history?.maintenance?.map((task: any) => <tr key={task.id}><td>{task.plan?.name}</td><td>{dateTime(task.dueAt)}</td><td><Badge value={task.status} kind="maintenanceStatus" /></td><td>{task.technician?.fullName ?? "Chưa giao"}</td></tr>)}</tbody></table></div></section>}
+          {tab === "documents" && <section className="card section"><div className="card-header"><h2>Tài liệu thiết bị</h2></div>{item.documents?.length ? <div className="metric-list">{item.documents.map((document: any) => <a key={document.id} href={document.fileUrl} target="_blank" rel="noreferrer">{document.fileName}</a>)}</div> : <p className="muted">Chưa có tài liệu.</p>}</section>}
         </>
       )}
     </AppShell>

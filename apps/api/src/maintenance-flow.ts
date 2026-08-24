@@ -16,3 +16,13 @@ export function nextMaintenanceDate(
     next.setFullYear(next.getFullYear() + interval);
   return next;
 }
+
+export function missingChecklistReasons(
+  required: string[],
+  result: Array<{ item: string; completed: boolean; note?: string }>,
+) {
+  return required.filter((item) => {
+    const entry = result.find((candidate) => candidate.item === item);
+    return !entry || (!entry.completed && !entry.note?.trim());
+  });
+}

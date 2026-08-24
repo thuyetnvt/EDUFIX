@@ -13,7 +13,8 @@ export type LabelKind =
   | "auditEntity"
   | "aiCategory"
   | "aiIssueType"
-  | "notificationType";
+  | "notificationType"
+  | "inventoryStatus";
 
 const labels: Record<LabelKind, Record<string, string>> = {
   role: {
@@ -130,6 +131,11 @@ const labels: Record<LabelKind, Record<string, string>> = {
     LOW_STOCK: "Tồn kho thấp",
     SYSTEM: "Hệ thống",
   },
+  inventoryStatus: {
+    IN_STOCK: "Còn hàng",
+    LOW_STOCK: "Tồn kho thấp",
+    OUT_OF_STOCK: "Hết hàng",
+  },
 };
 
 const genericLabels: Record<string, string> = {
@@ -149,7 +155,7 @@ export function vi(value?: string | null, kind?: LabelKind) {
   return (
     labels[kind ?? "incidentStatus"]?.[value] ??
     genericLabels[value] ??
-    value.replaceAll("_", " ")
+    value
   );
 }
 

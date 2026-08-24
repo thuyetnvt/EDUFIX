@@ -86,6 +86,11 @@ export class IncidentsController {
     return this.incidents.create(req.user, body);
   }
 
+  @Post("preview")
+  preview(@Body() body: CreateIncidentDto) {
+    return this.incidents.preview(body);
+  }
+
   @Post(":id/assign")
   assign(
     @Req() req: any,

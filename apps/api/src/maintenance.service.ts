@@ -13,7 +13,7 @@ import {
 import { PrismaService } from "./prisma.service";
 import { AuditService } from "./audit.service";
 import { syncAssetStatus } from "./asset-status";
-import { nextMaintenanceDate } from "./maintenance-flow";
+import { missingChecklistReasons, nextMaintenanceDate } from "./maintenance-flow";
 import {
   CompleteMaintenanceTaskDto,
   CreateMaintenancePlanDto,
@@ -143,6 +143,7 @@ export class MaintenanceService {
         asset: { include: { location: true } },
         plan: true,
         technician: { select: { fullName: true } },
+        attachments: true,
       },
       orderBy: { dueAt: "asc" },
     });
@@ -156,6 +157,7 @@ export class MaintenanceService {
         asset: { include: { location: true } },
         plan: true,
         technician: { select: { fullName: true } },
+        attachments: true,
       },
     });
     if (!task) throw new NotFoundException("Không tìm thấy công việc bảo trì");
@@ -197,6 +199,14 @@ export class MaintenanceService {
       throw new ForbiddenException("Công việc chưa được giao cho bạn");
     if (task.status !== MaintenanceTaskStatus.IN_PROGRESS)
       throw new BadRequestException("Công việc chưa được bắt đầu");
+    const requiredChecklist = Array.isArray(task.plan.checklist)
+      ? (task.plan.checklist as string[])
+      : [];
+    const missingRequired = missingChecklistReasons(requiredChecklist, body.checklistResult);
+    if (missingRequired.length)
+      throw new BadRequestException(
+        `Cần hoàn thành hoặc nhập lý do bỏ qua: ${missingRequired.join(", ")}`,
+      );
     const result = await this.prisma.$transaction(async (tx) => {
       const completed = await tx.maintenanceTask.update({
         where: { id },

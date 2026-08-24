@@ -1,117 +1,27 @@
 "use client";
-import { useEffect, useState } from "react";
+
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useEffect, useMemo, useState } from "react";
 import AppShell from "../../components/AppShell";
-import { ErrorBox, Loading, Stat } from "../../components/UI";
+import { Badge, Empty, ErrorBox, Loading, Stat } from "../../components/UI";
 import { API_URL, accessToken, api, money } from "../../lib/api";
+import { vi } from "../../lib/i18n";
+
+const colors = ["#2f6fed", "#16a6bd", "#f2a93b", "#dc5c67", "#7c63d8", "#7f8da6"];
+function group(rows: any[], key: string) { const map = new Map<string, number>(); rows.forEach((row) => map.set(row[key], (map.get(row[key]) ?? 0) + 1)); return [...map.entries()].map(([name, value]) => ({ name, value })); }
+
 export default function Reports() {
-  const [techs, setTechs] = useState<any[] | null>(null);
+  const [rows, setRows] = useState<any[] | null>(null);
+  const [techs, setTechs] = useState<any[]>([]);
   const [cost, setCost] = useState<any>(null);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [error, setError] = useState("");
-  useEffect(() => {
-    Promise.all([
-      api<any[]>("/reports/technicians"),
-      api<any>("/reports/costs"),
-    ])
-      .then(([t, c]) => {
-        setTechs(t);
-        setCost(c);
-      })
-      .catch((e) => setError(e.message));
-  }, []);
-  async function download() {
-    const r = await fetch(`${API_URL}/reports/incidents?format=csv`, {
-      headers: { Authorization: `Bearer ${accessToken()}` },
-    });
-    if (!r.ok) {
-      setError("Không thể xuất báo cáo");
-      return;
-    }
-    const blob = await r.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "edufix-incidents.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-  return (
-    <AppShell
-      title="Báo cáo & phân tích"
-      actions={
-        <button className="button" onClick={download}>
-          ↓ Xuất CSV
-        </button>
-      }
-    >
-      <div className="page-head">
-        <div>
-          <h2>Hiệu quả vận hành</h2>
-          <p>Tổng hợp chi phí và năng suất kỹ thuật viên.</p>
-        </div>
-        <button className="button" onClick={download}>
-          ↓ Xuất CSV
-        </button>
-      </div>
-      <ErrorBox message={error} />
-      {!techs ? (
-        <Loading />
-      ) : (
-        <>
-          <section className="grid">
-            <Stat label="Kỹ thuật viên" value={techs.length} />
-            <Stat
-              label="Phiếu được giao"
-              value={techs.reduce((s, x) => s + x.assigned, 0)}
-            />
-            <Stat
-              label="Phiếu hoàn thành"
-              value={techs.reduce((s, x) => s + x.completed, 0)}
-              tone="green"
-            />
-            <Stat
-              label="Tổng chi phí sửa chữa"
-              value={money(cost?.total)}
-              tone="amber"
-            />
-          </section>
-          <section className="card section">
-            <div className="card-header">
-              <h2>Năng suất kỹ thuật viên</h2>
-            </div>
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Kỹ thuật viên</th>
-                    <th>Được giao</th>
-                    <th>Hoàn thành</th>
-                    <th>Tỷ lệ</th>
-                    <th>Thời gian xử lý TB</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {techs.map((x) => (
-                    <tr key={x.id}>
-                      <td>
-                        <b>{x.fullName}</b>
-                      </td>
-                      <td>{x.assigned}</td>
-                      <td>{x.completed}</td>
-                      <td>
-                        <div className="progress" style={{ width: 130 }}>
-                          <span style={{ width: `${x.completionRate}%` }} />
-                        </div>{" "}
-                        {x.completionRate}%
-                      </td>
-                      <td>{x.averageResolutionMinutes} phút</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </>
-      )}
-    </AppShell>
-  );
+  const load = () => { const params = new URLSearchParams(); if (from) params.set("from", `${from}T00:00:00.000Z`); if (to) params.set("to", `${to}T23:59:59.999Z`); setError(""); return Promise.all([api<any[]>(`/reports/incidents?${params}`), api<any[]>("/reports/technicians"), api<any>(`/reports/costs?${params}`)]).then(([incidents, technicians, costs]) => { setRows(incidents); setTechs(technicians); setCost(costs); }).catch((e: Error) => setError(e.message)); };
+  useEffect(() => { void load(); }, [from, to]);
+  const byStatus = useMemo(() => group(rows ?? [], "status"), [rows]);
+  const byPriority = useMemo(() => group(rows ?? [], "priority"), [rows]);
+  const byLocation = useMemo(() => group((rows ?? []).map((row) => ({ location: row.asset?.location?.name ?? "Chưa xác định" })), "location").sort((a, b) => b.value - a.value).slice(0, 8), [rows]);
+  async function download() { const params = new URLSearchParams({ format: "csv" }); if (from) params.set("from", `${from}T00:00:00.000Z`); if (to) params.set("to", `${to}T23:59:59.999Z`); const response = await fetch(`${API_URL}/reports/incidents?${params}`, { headers: { Authorization: `Bearer ${accessToken()}` } }); if (!response.ok) { setError("Không thể xuất báo cáo"); return; } const blob = await response.blob(); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "edufix-incidents.csv"; anchor.click(); URL.revokeObjectURL(url); }
+  return <AppShell title="Báo cáo & phân tích" actions={<button className="button" onClick={() => void download()}>↓ Xuất CSV</button>}><div className="page-head"><div><h2>Hiệu quả vận hành</h2><p>Phân tích sự cố, chi phí và năng suất theo khoảng thời gian.</p></div></div><div className="report-filters"><label>Từ ngày<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label><label>Đến ngày<input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label><button className="button secondary" onClick={() => { setFrom(""); setTo(""); }}>Toàn bộ thời gian</button></div><ErrorBox message={error} onRetry={() => void load()} />{!rows ? <Loading /> : rows.length === 0 ? <div className="card"><Empty text="Không có dữ liệu trong khoảng thời gian này." /></div> : <><section className="grid"><Stat label="Tổng phiếu" value={rows.length} /><Stat label="Kỹ thuật viên" value={techs.length} /><Stat label="Phiếu hoàn thành" value={rows.filter((row) => row.status === "COMPLETED").length} tone="green" /><Stat label="Tổng chi phí" value={money(cost?.total)} tone="amber" /></section><section className="dashboard-grid section"><div className="card"><div className="card-header"><h2>Theo trạng thái</h2></div><div className="chart-box compact"><ResponsiveContainer width="100%" height={260}><PieChart><Pie data={byStatus} dataKey="value" nameKey="name" innerRadius={60} outerRadius={92}>{byStatus.map((item, index) => <Cell key={item.name} fill={colors[index % colors.length]} />)}</Pie><Tooltip formatter={(value, name) => [value, vi(String(name), "incidentStatus")]} /><Legend formatter={(value) => vi(String(value), "incidentStatus")} /></PieChart></ResponsiveContainer></div></div><div className="card"><div className="card-header"><h2>Theo mức ưu tiên</h2></div><div className="chart-box compact"><ResponsiveContainer width="100%" height={260}><BarChart data={byPriority}><CartesianGrid strokeDasharray="3 3" stroke="#e8edf5" /><XAxis dataKey="name" tickFormatter={(value) => vi(value, "priority")} tick={{ fontSize: 10 }} /><YAxis allowDecimals={false} /><Tooltip formatter={(value) => [value, "Số phiếu"]} /><Bar dataKey="value" fill="#2f6fed" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div></div></section><section className="dashboard-grid section"><div className="card"><div className="card-header"><h2>Theo vị trí</h2></div><div className="chart-box compact"><ResponsiveContainer width="100%" height={280}><BarChart data={byLocation} layout="vertical" margin={{ left: 20, right: 15 }}><CartesianGrid strokeDasharray="3 3" stroke="#e8edf5" horizontal={false} /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10 }} /><Tooltip /><Bar dataKey="value" name="Số phiếu" fill="#16a6bd" radius={[0, 5, 5, 0]} /></BarChart></ResponsiveContainer></div></div><div className="card"><div className="card-header"><h2>Năng suất kỹ thuật viên</h2></div><div className="table-wrap"><table className="table"><thead><tr><th>Kỹ thuật viên</th><th>Được giao</th><th>Hoàn thành</th><th>Tỷ lệ</th></tr></thead><tbody>{techs.map((item) => <tr key={item.id}><td><b>{item.fullName}</b></td><td>{item.assigned}</td><td>{item.completed}</td><td><Badge value={item.completionRate >= 80 ? "IN_STOCK" : "LOW_STOCK"} kind="inventoryStatus" /> {item.completionRate}%</td></tr>)}</tbody></table></div></div></section></>}</AppShell>;
 }

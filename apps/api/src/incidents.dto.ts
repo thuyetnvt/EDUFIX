@@ -1,6 +1,7 @@
 import { Type } from "class-transformer";
 import {
   IsBoolean,
+  IsDateString,
   IsEnum,
   IsInt,
   IsNumber,
@@ -19,6 +20,8 @@ export class IncidentQueryDto {
   @IsOptional() @IsString() assetId?: string;
   @IsOptional() @IsString() technicianId?: string;
   @IsOptional() @Type(() => Boolean) @IsBoolean() overdue?: boolean;
+  @IsOptional() @IsDateString() dateFrom?: string;
+  @IsOptional() @IsDateString() dateTo?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize = 20;
 }

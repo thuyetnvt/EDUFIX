@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -8,8 +9,10 @@ import {
   Query,
   Req,
   UseGuards,
+  UploadedFile,
+  UseInterceptors,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiConsumes, ApiTags } from "@nestjs/swagger";
 import { randomBytes } from "crypto";
 import { Prisma, Role } from "@prisma/client";
 import { PrismaService } from "./prisma.service";
@@ -25,6 +28,11 @@ import {
 } from "./assets.dto";
 import { AuditService } from "./audit.service";
 import QRCode from "qrcode";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { memoryStorage } from "multer";
+import { existsSync, mkdirSync } from "fs";
+import { writeFile } from "fs/promises";
+import { resolve } from "path";
 
 @ApiTags("assets")
 @Controller("api/v1")
@@ -197,6 +205,26 @@ export class AssetsController {
       result,
     );
     return result;
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.FACILITY_MANAGER)
+  @ApiConsumes("multipart/form-data")
+  @Post("assets/:id/image")
+  @UseInterceptors(FileInterceptor("file", { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: (_req, file, callback) => callback(file.mimetype.match(/^image\/(jpeg|png|webp)$/) ? null : new BadRequestException("Chỉ chấp nhận ảnh JPEG, PNG hoặc WebP"), Boolean(file.mimetype.match(/^image\/(jpeg|png|webp)$/))) }))
+  async image(@Req() req: any, @Param("id") id: string, @UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException("Vui lòng chọn ảnh");
+    const actualMime = file.buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ? "image/png" : file.buffer.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])) ? "image/jpeg" : file.buffer.toString("ascii", 0, 4) === "RIFF" && file.buffer.toString("ascii", 8, 12) === "WEBP" ? "image/webp" : null;
+    if (!actualMime || actualMime !== file.mimetype) throw new BadRequestException("Nội dung tệp không khớp định dạng ảnh");
+    const uploadDir = resolve(process.cwd(), "uploads");
+    if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
+    const extension = actualMime === "image/jpeg" ? ".jpg" : actualMime === "image/png" ? ".png" : ".webp";
+    const fileName = `asset-${randomBytes(16).toString("hex")}${extension}`;
+    await writeFile(resolve(uploadDir, fileName), file.buffer);
+    const updated = await this.prisma.asset.update({ where: { id }, data: { imageUrl: `/api/v1/files/${fileName}` } });
+    await this.audit.record(req.user.sub, "UPDATE", "Asset", id, undefined, { imageUrl: true });
+    return updated;
   }
 
   @ApiBearerAuth()

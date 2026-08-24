@@ -165,12 +165,8 @@ export default function Inventory() {
                         <td>{x.category}</td>
                         <td>
                           <Badge
-                            value={
-                              x.quantity <= x.minimumQuantity
-                                ? "LOW_STOCK"
-                                : "ACTIVE"
-                            }
-                            kind="assetStatus"
+                            value={x.quantity === 0 ? "OUT_OF_STOCK" : x.quantity <= x.minimumQuantity ? "LOW_STOCK" : "IN_STOCK"}
+                            kind="inventoryStatus"
                           />{" "}
                           {x.quantity} {x.unit}
                         </td>

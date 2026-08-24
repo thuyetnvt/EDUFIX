@@ -8,7 +8,7 @@
     "build": "dotenv -e .env -- pnpm -r build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm --filter @edufix/api exec tsx --test ../../tests/domain.test.ts",
+    "test": "pnpm --filter @edufix/api exec tsx --test ../../tests/domain.test.ts ../../tests/navigation.test.ts",
     "test:e2e": "node --test tests/api.e2e.test.js",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "format": "prettier --write \"apps/**/*.{ts,tsx,css,js,json}\" \"tests/**/*.js\" \"docs/**/*.md\" \"README.md\"",

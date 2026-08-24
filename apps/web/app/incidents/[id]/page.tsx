@@ -20,6 +20,8 @@ export default function IncidentDetail() {
   const [techs, setTechs] = useState<any[]>([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [reopenReason, setReopenReason] = useState("");
   const load = useCallback(
     () =>
       api<any>(`/incidents/${id}`)
@@ -263,21 +265,27 @@ export default function IncidentDetail() {
                   Chờ vật tư
                 </button>
               )}
+              {(technician || manager) && item.status === "WAITING_FOR_PARTS" && (
+                <button
+                  className="button"
+                  onClick={() => post("/transition", { status: "IN_PROGRESS", note: "Tiếp tục xử lý sau khi có vật tư" })}
+                >
+                  Tiếp tục xử lý
+                </button>
+              )}
               {reporter && item.status === "AWAITING_CONFIRMATION" && (
                 <>
                   <button
                     className="button"
-                    onClick={() => post("/confirm", { resolved: true })}
+                    onClick={() => {
+                      if (window.confirm("Xác nhận thiết bị đã được xử lý hoàn tất?")) void post("/confirm", { resolved: true });
+                    }}
                   >
                     Xác nhận hoàn thành
                   </button>
                   <button
                     className="button danger"
-                    onClick={() =>
-                      post("/reopen", {
-                        reason: "Sự cố chưa được khắc phục hoàn toàn",
-                      })
-                    }
+                    onClick={() => setReopenOpen(true)}
                   >
                     Mở lại phiếu
                   </button>
@@ -373,6 +381,16 @@ export default function IncidentDetail() {
             {item.rating && (
               <div className="success section">
                 Đã đánh giá {item.rating.rating}/5 · {item.rating.comment}
+              </div>
+            )}
+            {reopenOpen && (
+              <div className="dialog-backdrop" role="presentation">
+                <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="reopen-title">
+                  <h3 id="reopen-title">Mở lại phiếu sự cố</h3>
+                  <p className="muted">Nêu rõ lý do để kỹ thuật viên biết cần xử lý thêm.</p>
+                  <label>Lý do<textarea value={reopenReason} onChange={(event) => setReopenReason(event.target.value)} minLength={5} required autoFocus /></label>
+                  <div className="form-actions"><button className="button secondary" type="button" onClick={() => setReopenOpen(false)}>Hủy</button><button className="button danger" type="button" disabled={reopenReason.trim().length < 5} onClick={async () => { await post("/reopen", { reason: reopenReason.trim() }); setReopenOpen(false); setReopenReason(""); }}>Xác nhận mở lại</button></div>
+                </div>
               </div>
             )}
           </section>
